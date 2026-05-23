@@ -1,24 +1,306 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <style>
-        body{
-            background:black;
-            color:white;
-            display:flex;
-            justify-content:center;
-            align-items:center;
-            height:100vh;
-            font-size:30px;
-            font-family:Arial;
-        }
-    </style>
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  overflow:hidden;
+  background:black;
+}
+
+video,
+canvas{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+}
+
+video{
+  object-fit:cover;
+  transform:scaleX(-1);
+}
+
+canvas{
+  transform:scaleX(-1);
+}
+
+#gestureText{
+  position:fixed;
+  top:40px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:100;
+
+  color:white;
+  font-size:24px;
+  font-family:Arial;
+
+  background:rgba(0,0,0,0.6);
+
+  padding:14px 20px;
+  border-radius:14px;
+}
+
+#startBtn{
+  position:fixed;
+
+  top:50%;
+  left:50%;
+
+  transform:translate(-50%,-50%);
+
+  z-index:999;
+
+  padding:20px 40px;
+
+  font-size:22px;
+
+  border:none;
+  border-radius:14px;
+
+  background:white;
+  color:white;
+}
+
+</style>
+
 </head>
 
 <body>
-    Hello handy ai 
+
+<div id="gestureText">
+  Press Start
+</div>
+
+<button id="startBtn">
+  START CAMERA
+</button>
+
+<video id="video"
+       autoplay
+       playsinline>
+</video>
+
+<canvas id="canvas"></canvas>
+
+<script>
+
+const video =
+  document.getElementById("video");
+
+const canvas =
+  document.getElementById("canvas");
+
+const ctx =
+  canvas.getContext("2d");
+
+const gestureText =
+  document.getElementById("gestureText");
+
+const startBtn =
+  document.getElementById("startBtn");
+
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+canvas.width = W;
+canvas.height = H;
+
+window.addEventListener("resize",()=>{
+
+  W = window.innerWidth;
+  H = window.innerHeight;
+
+  canvas.width = W;
+  canvas.height = H;
+});
+
+function isFingerUp(tip,pip,landmarks){
+
+  return landmarks[tip].y <
+         landmarks[pip].y;
+}
+
+function detectGesture(landmarks){
+
+  const indexUp =
+    isFingerUp(8,6,landmarks);
+
+  const middleUp =
+    isFingerUp(12,10,landmarks);
+
+  const ringUp =
+    isFingerUp(16,14,landmarks);
+
+  const pinkyUp =
+    isFingerUp(20,18,landmarks);
+
+  // STOP
+
+  if(
+    indexUp &&
+    middleUp &&
+    ringUp &&
+    pinkyUp
+  ){
+    return "✋ STOP";
+  }
+
+  // PEACE
+
+  if(
+    indexUp &&
+    middleUp &&
+    !ringUp &&
+    !pinkyUp
+  ){
+    return "✌ PEACE";
+  }
+
+  return "Hand Detected";
+}
+
+async function startCamera(){
+
+  try{
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+
+        video:{
+          facingMode:"user",
+          width:{ideal:1280},
+          height:{ideal:720}
+        },
+
+        audio:false
+      });
+
+    video.srcObject = stream;
+
+    await video.play();
+
+    startBtn.style.display = "none";
+
+    gestureText.innerHTML =
+      "Camera Started ✅";
+
+    startHandTracking();
+
+  }catch(error){
+
+    console.log(error);
+
+    gestureText.innerHTML =
+      "Camera Error ❌";
+  }
+}
+
+function startHandTracking(){
+
+  const hands = new Hands({
+
+    locateFile:(file)=>{
+
+      return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }
+
+  });
+
+  hands.setOptions({
+
+    maxNumHands:1,
+    modelComplexity:1,
+    minDetectionConfidence:0.7,
+    minTrackingConfidence:0.7
+
+  });
+
+  hands.onResults(onResults);
+
+  const camera = new Camera(video,{
+
+    onFrame: async()=>{
+
+      await hands.send({
+        image:video
+      });
+
+    },
+
+    width:1280,
+    height:720
+
+  });
+
+  camera.start();
+}
+
+function onResults(results){
+
+  ctx.clearRect(0,0,W,H);
+
+  if(results.multiHandLandmarks){
+
+    for(const landmarks of results.multiHandLandmarks){
+
+      drawConnectors(
+        ctx,
+        landmarks,
+        HAND_CONNECTIONS,
+        {
+          color:"#00FF99",
+          lineWidth:4
+        }
+      );
+
+      drawLandmarks(
+        ctx,
+        landmarks,
+        {
+          color:"#00CCFF",
+          lineWidth:2,
+          radius:5
+        }
+      );
+
+      const gesture =
+        detectGesture(landmarks);
+
+      gestureText.innerHTML =
+        gesture;
+    }
+
+  }else{
+
+    gestureText.innerHTML =
+      "No Hand Detected";
+  }
+}
+
+startBtn.addEventListener(
+  "click",
+  startCamera
+);
+
+</script>
+
 </body>
 </html>
