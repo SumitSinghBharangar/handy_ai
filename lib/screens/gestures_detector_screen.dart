@@ -1,7 +1,7 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+import '../painters/hand_painter.dart';
 
 class GestureScreen extends StatefulWidget {
   const GestureScreen({super.key});
@@ -14,6 +14,11 @@ class _GestureScreenState extends State<GestureScreen> {
   late CameraController controller;
 
   bool isCameraReady = false;
+  bool isDetecting = false;
+
+  final poseDetector = PoseDetector(options: PoseDetectorOptions());
+
+  List<Pose> poses = [];
 
   @override
   void initState() {
@@ -30,12 +35,32 @@ class _GestureScreenState extends State<GestureScreen> {
       enableAudio: false,
     );
     await controller.initialize();
+    await controller.startImageStream((CameraImage image) {
+      if (isDetecting) return;
+
+      isDetecting = true;
+
+      processCameraFrame(image);
+    });
 
     if (!mounted) return;
 
     setState(() {
       isCameraReady = true;
     });
+  }
+
+  Future<void> processCameraFrame(CameraImage image) async {
+    print(
+      "Frame Received: "
+      "${image.width} x ${image.height}",
+    );
+
+    // AI PROCESSING WILL HAPPEN HERE
+
+    await Future.delayed(const Duration(milliseconds: 30));
+
+    isDetecting = false;
   }
 
   @override
@@ -52,6 +77,8 @@ class _GestureScreenState extends State<GestureScreen> {
           ? Stack(
               children: [
                 SizedBox.expand(child: CameraPreview(controller)),
+
+                CustomPaint(size: Size.infinite, painter: HandPainter()),
 
                 Positioned(
                   top: 60,
