@@ -1,6 +1,8 @@
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+import 'package:handy_ai/painters/pose_painter.dart';
 import '../painters/hand_painter.dart';
 
 class GestureScreen extends StatefulWidget {
@@ -51,14 +53,33 @@ class _GestureScreenState extends State<GestureScreen> {
   }
 
   Future<void> processCameraFrame(CameraImage image) async {
-    print(
-      "Frame Received: "
-      "${image.width} x ${image.height}",
+    final WriteBuffer allBytes = WriteBuffer();
+
+    for (final plane in image.planes) {
+      allBytes.putUint8List(plane.bytes);
+    }
+
+    final bytes = allBytes.done().buffer.asUint8List();
+
+    final inputImage = InputImage.fromBytes(
+      bytes: bytes,
+
+      metadata: InputImageMetadata(
+        size: Size(image.width.toDouble(), image.height.toDouble()),
+
+        rotation: InputImageRotation.rotation0deg,
+
+        format: InputImageFormat.yuv420,
+
+        bytesPerRow: image.planes.first.bytesPerRow,
+      ),
     );
 
-    // AI PROCESSING WILL HAPPEN HERE
+    final detectedPoses = await poseDetector.processImage(inputImage);
 
-    await Future.delayed(const Duration(milliseconds: 30));
+    poses = detectedPoses;
+
+    setState(() {});
 
     isDetecting = false;
   }
@@ -78,7 +99,7 @@ class _GestureScreenState extends State<GestureScreen> {
               children: [
                 SizedBox.expand(child: CameraPreview(controller)),
 
-                CustomPaint(size: Size.infinite, painter: HandPainter()),
+                CustomPaint(size: Size.infinite, painter: PosePainter(poses)),
 
                 Positioned(
                   top: 60,
