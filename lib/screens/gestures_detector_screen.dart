@@ -4,8 +4,9 @@ import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+
 import 'package:handy_ai/painters/pose_painter.dart';
+import 'package:handy_ai/services/hand_detector_service.dart';
 import '../painters/hand_painter.dart';
 
 late List<CameraDescription> cameras;
@@ -24,9 +25,9 @@ class _GestureScreenState extends State<GestureScreen> {
   bool isDetecting = false;
   Timer? detectionTimer;
 
-  final poseDetector = PoseDetector(options: PoseDetectorOptions());
+  final handDetector = HandDetectorService();
 
-  List<Pose> poses = [];
+  String statusText = "Initializing...";
 
   @override
   void initState() {
@@ -35,48 +36,77 @@ class _GestureScreenState extends State<GestureScreen> {
   }
 
   Future<void> initializeCamera() async {
-    cameras = await availableCameras();
+    try {
+      // LOAD AI MODEL
 
-    controller = CameraController(
-      cameras[0],
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
-    await controller.initialize();
-    startDetectionLoop();
+      await handDetector.loadModel();
 
-    if (!mounted) return;
+      // GET CAMERAS
 
-    setState(() {
-      isCameraReady = true;
-    });
+      cameras = await availableCameras();
+
+      // FRONT CAMERA
+
+      controller = CameraController(
+        cameras.first,
+
+        ResolutionPreset.medium,
+
+        enableAudio: false,
+      );
+
+      // INITIALIZE CAMERA
+
+      await controller.initialize();
+
+      // START DETECTION LOOP
+
+      startDetectionLoop();
+
+      if (!mounted) return;
+
+      setState(() {
+        isCameraReady = true;
+
+        statusText = "Hand AI Ready ✅";
+      });
+    } catch (e) {
+      print(e);
+
+      statusText = "Camera Error ❌";
+    }
   }
 
   void startDetectionLoop() {
-    detectionTimer = Timer.periodic(const Duration(milliseconds: 30), (
+    detectionTimer = Timer.periodic(const Duration(milliseconds: 500), (
       _,
     ) async {
       if (isDetecting) return;
 
       isDetecting = true;
 
-      await captureAndDetect();
+      await runHandDetection();
     });
   }
 
-  Future<void> captureAndDetect() async {
+  Future<void> runHandDetection() async {
     try {
-      final XFile file = await controller.takePicture();
+      final XFile image = await controller.takePicture();
 
-      final inputImage = InputImage.fromFilePath(file.path);
+      print("Frame Captured: ${image.path}");
 
-      final detectedPoses = await poseDetector.processImage(inputImage);
+      // NEXT STEP:
+      // AI HAND DETECTION WILL RUN HERE
 
-      poses = detectedPoses;
-
-      setState(() {});
+      setState(() {
+        statusText = "Detecting Hand...";
+      });
     } catch (e) {
       print(e);
+
+      setState(() {
+        statusText = "Detection Failed ❌";
+      });
     }
 
     isDetecting = false;
@@ -98,8 +128,6 @@ class _GestureScreenState extends State<GestureScreen> {
               children: [
                 SizedBox.expand(child: CameraPreview(controller)),
 
-                CustomPaint(size: Size.infinite, painter: PosePainter(poses)),
-
                 Positioned(
                   top: 60,
                   left: 0,
@@ -114,17 +142,55 @@ class _GestureScreenState extends State<GestureScreen> {
 
                       decoration: BoxDecoration(
                         color: Colors.black54,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.greenAccent,
+                          width: 1.5,
+                        ),
                       ),
 
-                      child: const Text(
-                        "Camera Working ✅",
+                      child: Text(
+                        statusText,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 40,
+                  left: 20,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 6,
+                          backgroundColor: Colors.greenAccent,
+                        ),
+
+                        SizedBox(width: 10),
+                        Text(
+                          "AI ACTIVE",
+
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
