@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:handy_ai/painters/pose_painter.dart';
 import '../painters/hand_painter.dart';
+
+late List<CameraDescription> cameras;
 
 class GestureScreen extends StatefulWidget {
   const GestureScreen({super.key});
@@ -17,6 +22,7 @@ class _GestureScreenState extends State<GestureScreen> {
 
   bool isCameraReady = false;
   bool isDetecting = false;
+  Timer? detectionTimer;
 
   final poseDetector = PoseDetector(options: PoseDetectorOptions());
 
@@ -29,7 +35,7 @@ class _GestureScreenState extends State<GestureScreen> {
   }
 
   Future<void> initializeCamera() async {
-    final cameras = await availableCameras();
+    cameras = await availableCameras();
 
     controller = CameraController(
       cameras[0],
@@ -37,13 +43,7 @@ class _GestureScreenState extends State<GestureScreen> {
       enableAudio: false,
     );
     await controller.initialize();
-    await controller.startImageStream((CameraImage image) {
-      if (isDetecting) return;
-
-      isDetecting = true;
-
-      processCameraFrame(image);
-    });
+    startDetectionLoop();
 
     if (!mounted) return;
 
@@ -52,34 +52,32 @@ class _GestureScreenState extends State<GestureScreen> {
     });
   }
 
-  Future<void> processCameraFrame(CameraImage image) async {
-    final WriteBuffer allBytes = WriteBuffer();
+  void startDetectionLoop() {
+    detectionTimer = Timer.periodic(const Duration(milliseconds: 30), (
+      _,
+    ) async {
+      if (isDetecting) return;
 
-    for (final plane in image.planes) {
-      allBytes.putUint8List(plane.bytes);
+      isDetecting = true;
+
+      await captureAndDetect();
+    });
+  }
+
+  Future<void> captureAndDetect() async {
+    try {
+      final XFile file = await controller.takePicture();
+
+      final inputImage = InputImage.fromFilePath(file.path);
+
+      final detectedPoses = await poseDetector.processImage(inputImage);
+
+      poses = detectedPoses;
+
+      setState(() {});
+    } catch (e) {
+      print(e);
     }
-
-    final bytes = allBytes.done().buffer.asUint8List();
-
-    final inputImage = InputImage.fromBytes(
-      bytes: bytes,
-
-      metadata: InputImageMetadata(
-        size: Size(image.width.toDouble(), image.height.toDouble()),
-
-        rotation: InputImageRotation.rotation0deg,
-
-        format: InputImageFormat.yuv420,
-
-        bytesPerRow: image.planes.first.bytesPerRow,
-      ),
-    );
-
-    final detectedPoses = await poseDetector.processImage(inputImage);
-
-    poses = detectedPoses;
-
-    setState(() {});
 
     isDetecting = false;
   }
@@ -87,6 +85,7 @@ class _GestureScreenState extends State<GestureScreen> {
   @override
   void dispose() {
     controller.dispose();
+    detectionTimer?.cancel();
     super.dispose();
   }
 
