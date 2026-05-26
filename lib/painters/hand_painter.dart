@@ -1,42 +1,33 @@
 import 'package:flutter/material.dart';
 
 class HandPainter extends CustomPainter {
+  final List<Offset> points;
+  final bool isFrontCamera;
+
+  HandPainter({required this.points, required this.isFrontCamera});
+
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.greenAccent
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
+    if (points.isEmpty) return;
 
-    final pointPaint = Paint()
-      ..color = Colors.cyanAccent
+    final paintDot = Paint()
+      ..color = Colors.greenAccent
       ..style = PaintingStyle.fill;
 
-    // TEMP DEMO POINTS
+    for (var point in points) {
+      double x = point.dx * size.width;
+      double y = point.dy * size.height;
 
-    final points = [
-      const Offset(200, 300),
-      const Offset(250, 250),
-      const Offset(300, 200),
-      const Offset(350, 170),
-      const Offset(400, 150),
-    ];
+      if (isFrontCamera) {
+        x = size.width - x; // Standard front camera horizontal mirroring
+      }
 
-    // DRAW LINES
-
-    for (int i = 0; i < points.length - 1; i++) {
-      canvas.drawLine(points[i], points[i + 1], paint);
-    }
-
-    // DRAW POINTS
-
-    for (final point in points) {
-      canvas.drawCircle(point, 10, pointPaint);
+      canvas.drawCircle(Offset(x, y), 6.0, paintDot);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(covariant HandPainter oldDelegate) {
+    return oldDelegate.points != points;
   }
 }
