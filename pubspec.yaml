@@ -36,10 +36,10 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   camera: ^0.11.3
-  hand_landmarker: ^2.1.2
+
   image: ^4.8.0
-  tflite_flutter: ^0.12.1
-  hand_detection: ^3.0.7
+
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:
