@@ -89,14 +89,10 @@ class _LiveTrackerViewState extends State<LiveTrackerView> {
     _isSendingFrame = true;
 
     try {
-      // FIX: Instead of raw planes, we use the controller's highly optimized native method
-      // to capture a snapshot file frame, which is globally guaranteed to be a true compressed JPEG
       XFile capturedFile = await _cameraController!.takePicture();
 
-      // Read the true JPEG binary array data
       final bytes = await capturedFile.readAsBytes();
 
-      // Blast the valid JPEG data directly down the websocket channel
       _wsChannel!.sink.add(bytes);
     } catch (e) {
       debugPrint("Failed to push image payload: $e");

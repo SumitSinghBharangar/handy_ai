@@ -10,13 +10,13 @@ class SkeletonPainter extends CustomPainter {
     if (handsPoints.isEmpty) return;
 
     final linePaint = Paint()
-      ..color = Colors.greenAccent
-      ..strokeWidth = 4.0
+      ..color = const Color.fromARGB(255, 246, 248, 247)
+      ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
     final jointPaint = Paint()
-      ..color = Colors.redAccent
+      ..color = const Color.fromARGB(255, 48, 120, 243)
       ..style = PaintingStyle.fill;
 
     final List<List<int>> fingerConnections = [
