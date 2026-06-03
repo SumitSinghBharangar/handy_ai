@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:handy_ai/screens/gestures_detector_screen.dart';
+
+import 'package:handy_ai/screens/live_tracker_view.dart';
 
 void main() {
   runApp(const MyApp());

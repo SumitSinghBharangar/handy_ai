@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:handy_ai/painters/skeleton_painter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-class LiveTrackerView extends StatefulWidget {
-  const LiveTrackerView({super.key});
+class GesturesDetectorScreen extends StatefulWidget {
+  const GesturesDetectorScreen({super.key});
 
   @override
-  State<LiveTrackerView> createState() => _LiveTrackerViewState();
+  State<GesturesDetectorScreen> createState() => _GesturesDetectorScreen();
 }
 
-class _LiveTrackerViewState extends State<LiveTrackerView> {
+class _GesturesDetectorScreen extends State<GesturesDetectorScreen> {
   CameraController? _cameraController;
   WebSocketChannel? _wsChannel;
 

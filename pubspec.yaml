@@ -40,6 +40,8 @@ dependencies:
   image: ^4.8.0
 
   web_socket_channel: ^3.0.3
+  hand_landmarker: ^2.2.0
+  hand_detection: ^3.1.0
 
 dev_dependencies:
   flutter_test:
