@@ -20,7 +20,7 @@ class _GesturesDetectorScreen extends State<GesturesDetectorScreen> {
   bool _isSendingFrame = false;
 
   // REPLACE THIS WITH YOUR COMPUTER'S IP ADDRESS
-  final String _pcIpAddress = "10.62.195.65";
+  final String _pcIpAddress = "10.93.195.65";
 
   @override
   void initState() {
