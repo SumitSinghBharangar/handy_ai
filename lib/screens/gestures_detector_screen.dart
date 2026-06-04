@@ -8,24 +8,92 @@ class GesturesDetectorScreen extends StatefulWidget {
   const GesturesDetectorScreen({super.key});
 
   @override
-  State<GesturesDetectorScreen> createState() => _GesturesDetectorScreen();
+  State<GesturesDetectorScreen> createState() => _GesturesDetectorScreenState();
 }
 
-class _GesturesDetectorScreen extends State<GesturesDetectorScreen> {
+class _GesturesDetectorScreenState extends State<GesturesDetectorScreen> {
   CameraController? _cameraController;
   WebSocketChannel? _wsChannel;
 
   List<List<Offset>> _trackedHands = [];
+  String _detectedGesture = "AWAITING HAND..."; // Dynamic gesture name tracker
   bool _isPipelineReady = false;
   bool _isSendingFrame = false;
 
-  // REPLACE THIS WITH YOUR COMPUTER'S IP ADDRESS
-  final String _pcIpAddress = "10.93.195.65";
+  String _pcIpAddress = "";
 
   @override
   void initState() {
     super.initState();
-    _initializePipeline();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showIpConfigDialog();
+    });
+  }
+
+  void _showIpConfigDialog() {
+    final TextEditingController ipController = TextEditingController(
+      text: _pcIpAddress.isEmpty ? "10.93.195.65" : _pcIpAddress,
+    );
+
+    showDialog(
+      context: context,
+      barrierDismissible: _pcIpAddress.isNotEmpty,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.gesture, color: Colors.cyanAccent),
+              SizedBox(width: 10),
+              Text(
+                "Gesture System Engine",
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          content: TextField(
+            controller: ipController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: "Enter Computer IPv4 Address",
+              labelStyle: const TextStyle(color: Colors.grey),
+              enabledBorder: OutlineInputBorder(
+                borderSide: const BorderSide(color: Colors.grey),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: const BorderSide(color: Colors.cyanAccent),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                if (ipController.text.trim().isNotEmpty) {
+                  Navigator.of(context).pop();
+                  if (_isPipelineReady) {
+                    _cameraController?.stopImageStream();
+                    _wsChannel?.sink.close();
+                    setState(() {
+                      _isPipelineReady = false;
+                      _trackedHands = [];
+                    });
+                  }
+                  _pcIpAddress = ipController.text.trim();
+                  _initializePipeline();
+                }
+              },
+              child: const Text(
+                "Launch Engine",
+                style: TextStyle(color: Colors.cyanAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _initializePipeline() async {
@@ -33,30 +101,30 @@ class _GesturesDetectorScreen extends State<GesturesDetectorScreen> {
       final String wsUrl = "ws://$_pcIpAddress:8000/ws/hand-tracking";
       _wsChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
-      _wsChannel!.stream.listen(
-        (message) {
-          final Map<String, dynamic> response = jsonDecode(message);
-          final List<dynamic> handsData = response['hands'];
+      _wsChannel!.stream.listen((message) {
+        final Map<String, dynamic> response = jsonDecode(message);
 
-          List<List<Offset>> parsedHands = [];
-          for (var hand in handsData) {
-            List<Offset> points = [];
-            for (var landmark in hand) {
-              points.add(Offset(landmark['x'], landmark['y']));
-            }
-            parsedHands.add(points);
-          }
+        // 1. Extract the Expression name text parsed by Python
+        final String expression = response['gesture'] ?? "TRACKING...";
 
-          if (mounted) {
-            setState(() {
-              _trackedHands = parsedHands;
-            });
+        // 2. Extract standard structural coordinates arrays
+        final List<dynamic> handsData = response['hands'];
+        List<List<Offset>> parsedHands = [];
+        for (var hand in handsData) {
+          List<Offset> points = [];
+          for (var landmark in hand) {
+            points.add(Offset(landmark['x'], landmark['y']));
           }
-        },
-        onError: (error) {
-          debugPrint("WebSocket Error: $error");
-        },
-      );
+          parsedHands.add(points);
+        }
+
+        if (mounted) {
+          setState(() {
+            _trackedHands = parsedHands;
+            _detectedGesture = expression; // Update our display state
+          });
+        }
+      }, onError: (error) => debugPrint("WebSocket Error: $error"));
 
       final cameras = await availableCameras();
       final frontCam = cameras.firstWhere(
@@ -66,39 +134,42 @@ class _GesturesDetectorScreen extends State<GesturesDetectorScreen> {
 
       _cameraController = CameraController(
         frontCam,
-        ResolutionPreset
-            .medium, // Medium resolution ensures lightning fast network streaming
+        ResolutionPreset.medium,
         enableAudio: false,
       );
-
       await _cameraController!.initialize();
-
-      // Start streaming video frames from the camera
-      await _cameraController!.startImageStream((CameraImage image) {
-        _streamFrameToBackend(image);
-      });
+      await _cameraController!.startImageStream(
+        (CameraImage image) => _streamFrameToBackend(image),
+      );
 
       setState(() => _isPipelineReady = true);
     } catch (e) {
-      debugPrint("Pipeline setup failure: $e");
+      debugPrint("Pipeline Error: $e");
     }
   }
 
   void _streamFrameToBackend(CameraImage image) async {
     if (_isSendingFrame || _wsChannel == null) return;
     _isSendingFrame = true;
-
     try {
       XFile capturedFile = await _cameraController!.takePicture();
-
       final bytes = await capturedFile.readAsBytes();
-
       _wsChannel!.sink.add(bytes);
     } catch (e) {
-      debugPrint("Failed to push image payload: $e");
+      debugPrint("Payload error: $e");
     } finally {
       _isSendingFrame = false;
     }
+  }
+
+  // Returns different neon accent colors depending on which expression is active
+  Color _getExpressionColor() {
+    if (_detectedGesture.contains("VICTORY")) return Colors.purpleAccent;
+    if (_detectedGesture.contains("FIST")) return Colors.redAccent;
+    if (_detectedGesture.contains("PALM")) return Colors.greenAccent;
+    if (_detectedGesture.contains("THUMBS")) return Colors.amberAccent;
+    if (_detectedGesture.contains("POINTING")) return Colors.blueAccent;
+    return Colors.cyanAccent;
   }
 
   @override
@@ -112,13 +183,25 @@ class _GesturesDetectorScreen extends State<GesturesDetectorScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_isPipelineReady || _cameraController == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: CircularProgressIndicator(color: Colors.greenAccent),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Colors.cyanAccent),
+              const SizedBox(height: 15),
+              Text(
+                "Booting Up Pipeline at $_pcIpAddress...",
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
         ),
       );
     }
+
+    Color activeColor = _getExpressionColor();
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -129,6 +212,58 @@ class _GesturesDetectorScreen extends State<GesturesDetectorScreen> {
           CustomPaint(
             size: Size.infinite,
             painter: SkeletonPainter(handsPoints: _trackedHands),
+          ),
+
+          // --- NEON GLOW COLORFUL TEXT OVERLAY LAYER ---
+          Positioned(
+            top: 60,
+            left: 20,
+            right: 20,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.75),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: activeColor, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: activeColor.withOpacity(0.4),
+                    blurRadius: 15,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Text(
+                _detectedGesture,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  shadows: [Shadow(color: activeColor, blurRadius: 10)],
+                ),
+              ),
+            ),
+          ),
+
+          // Settings Button
+          Positioned(
+            bottom: 40,
+            right: 30,
+            child: CircleAvatar(
+              backgroundColor: Colors.black,
+              radius: 28,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.settings,
+                  color: Colors.cyanAccent,
+                  size: 28,
+                ),
+                onPressed: _showIpConfigDialog,
+              ),
+            ),
           ),
         ],
       ),
